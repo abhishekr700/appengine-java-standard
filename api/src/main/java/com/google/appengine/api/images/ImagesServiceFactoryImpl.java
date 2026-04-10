@@ -16,8 +16,11 @@
 
 package com.google.appengine.api.images;
 
+import com.google.appengine.api.EnvironmentProvider;
+import com.google.appengine.api.SystemEnvironmentProvider;
 import com.google.appengine.api.blobstore.BlobKey;
 import com.google.appengine.api.blobstore.BlobstoreServiceFactory;
+import com.google.common.annotations.VisibleForTesting;
 import java.util.Collection;
 
 /**
@@ -26,6 +29,17 @@ import java.util.Collection;
  *
  */
 final class ImagesServiceFactoryImpl implements IImagesServiceFactory {
+
+  @VisibleForTesting
+  static final String USE_CUSTOM_IMAGES_GRPC_SERVICE_ENV = "USE_CUSTOM_IMAGES_GRPC_SERVICE";
+
+  private EnvironmentProvider environmentProvider = new SystemEnvironmentProvider();
+
+  @VisibleForTesting
+  void setEnvironmentProvider(EnvironmentProvider environmentProvider) {
+    this.environmentProvider = environmentProvider;
+  }
+
 
   @Override
   public ImagesService getImagesService() {
@@ -44,6 +58,12 @@ final class ImagesServiceFactoryImpl implements IImagesServiceFactory {
 
   @Override
   public Image makeImageFromFilename(String filename) {
+    if (Boolean.parseBoolean(environmentProvider.getenv(USE_CUSTOM_IMAGES_GRPC_SERVICE_ENV))) {
+      if (!filename.startsWith("/gs/")) {
+        throw new IllegalArgumentException("Google storage filenames must be prefixed with /gs/");
+      }
+      return new ImageImpl(new BlobKey(filename));
+    }
     BlobKey blobKey = BlobstoreServiceFactory.getBlobstoreService().createGsBlobKey(filename);
     return new ImageImpl(blobKey);
   }
